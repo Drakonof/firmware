@@ -3,9 +3,13 @@
 
 #include "xparameters.h"
 
-#include "config.h"
-#include "types_.h"
+#define INCLUDE_LIB 0
+#if (1 == INCLUDE_LIB)
+    #include "config.h"
+    #include "types_.h"
+#endif
 
+#define ENABLE_DEBUG 0
 
 #define M_write_reg(reg, value)      \
     do {                             \
