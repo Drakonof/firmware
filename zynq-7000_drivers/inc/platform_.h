@@ -9,11 +9,9 @@
     #include "types_.h"
 #endif
 
-#define ENABLE_DEBUG 0
-
-#define M_write_reg(reg, value)      \
-    do {                             \
-       *(uint32_t *)(reg) = (value); \
+#define M_write_reg(reg, value)       \
+    do {                              \
+        *(uint32_t *)(reg) = (value); \
     }while (0);
 
 #define M_read_reg(reg, value)        \
@@ -32,7 +30,7 @@
     }while (0)
 
 #define M_status_return_if(exp) \
-	do {                        \
+    do {                        \
         if (exp) {              \
             return error_;      \
         }                       \
@@ -48,7 +46,7 @@
 #define M_user_return_assert_if(exp, assert) \
     do {                                     \
         if (exp) {                           \
-        	assert = error_;                 \
+            assert = error_;                 \
             return error_;                   \
         }                                    \
     } while(0)
