@@ -1,9 +1,5 @@
 //todo: mirror, repeat
-#include "xparameters.h"
-#include "xscugic.h"
-#include "xil_exception.h"
-#include "xiicps.h"
-
+//todo: get wave out, RAM, right am/pm, порядок и оптимизация
 #include "i2c.h"
 
 static XScuGic interrupt_cntr;
@@ -111,85 +107,85 @@ status i2c_reinit(i2c_inition *p_init) {
 }
 
 //todo:
-status i2c_release(i2c_handle *p_handle) {
+status i2c_release(i2c_handler *p_handler) {
 	return ok_;
 }
 
-status i2c_write(i2c_handle *p_handle) {
-	if (true_ != init[p_handle->id]) {
-		return init[p_handle->id];
+status i2c_write(i2c_handler *p_handler) {
+	if (true_ != init[p_handler->id]) {
+		return init[p_handler->id];
 	}
 
-	if (NULL == p_handle) {
+	if (NULL == p_handler) {
 		return error_;
 	}
 
-	tx_complete[p_handle->id] = false_;
-	error_count[p_handle->id] = 0;
+	tx_complete[p_handler->id] = false_;
+	error_count[p_handler->id] = 0;
 
-	if (true_ == p_handle->do_unblocking_mode) {
-		if (ok_ != write_un_block_mode_(p_handle->id,
-										p_handle->tx_buffer,
-										p_handle->size,
-										p_handle->bus_address)) {
+	if (true_ == p_handler->do_unblocking_mode) {
+		if (ok_ != write_un_block_mode_(p_handler->id,
+										p_handler->tx_buffer,
+										p_handler->size,
+										p_handler->bus_address)) {
 			return error_;
 		}
 	}
 	else {
-		if (ok_ != write_block_mode_(p_handle->id,
-								     p_handle->tx_buffer,
-								     p_handle->size,
-									 p_handle->bus_address)) {
+		if (ok_ != write_block_mode_(p_handler->id,
+								     p_handler->tx_buffer,
+								     p_handler->size,
+									 p_handler->bus_address)) {
 			return error_;
 		}
 
-		tx_complete[p_handle->id] = true_;
+		tx_complete[p_handler->id] = true_;
 	}
 
 	return ok_;
 }
 
-status i2c_read(i2c_handle *p_handle) {
-	if (true_ != init[p_handle->id]) {
-		return init[p_handle->id];
+status i2c_read(i2c_handler *p_handler) {
+	if (true_ != init[p_handler->id]) {
+		return init[p_handler->id];
 	}
 
-	if (NULL == p_handle) {
+	if (NULL == p_handler) {
 		return error_;
 	}
 
-	rx_complete[p_handle->id] = false_;
-	error_count[p_handle->id] = 0;
+	rx_complete[p_handler->id] = false_;
+	error_count[p_handler->id] = 0;
 
-	if (true_ == p_handle->do_unblocking_mode) {
-		if (ok_ != read_un_block_mode_(p_handle->id,
-									   p_handle->rx_buffer,
-									   p_handle->size,
-									   p_handle->bus_address)) {
+	if (true_ == p_handler->do_unblocking_mode) {
+		if (ok_ != read_un_block_mode_(p_handler->id,
+									   p_handler->rx_buffer,
+									   p_handler->size,
+									   p_handler->bus_address)) {
 			return error_;
 		}
 	}
 	else {
-		if (ok_ != read_block_mode_(p_handle->id,
-								    p_handle->rx_buffer,
-									p_handle->size,
-									p_handle->bus_address)) {
+		if (ok_ != read_block_mode_(p_handler->id,
+								    p_handler->rx_buffer,
+									p_handler->size,
+									p_handler->bus_address)) {
 			return error_;
 		}
 
-		rx_complete[p_handle->id] = true_;
+		rx_complete[p_handler->id] = true_;
 	}
 
    return ok_;
 }
 
 //todo:
-status i2c_reset(i2c_handle *p_handle) {
-	if (true_ != init[p_handle->id]) {
-		return init[p_handle->id];
+status i2c_reset(i2c_handler *p_handler) {
+	if (true_ != init[p_handler->id]) {
+		return init[p_handler->id];
 	}
 
-	if (NULL == p_handle) {
+	if (NULL == p_handler) {
 		return error_;
 	}
 
@@ -197,23 +193,24 @@ status i2c_reset(i2c_handle *p_handle) {
 	return ok_;
 }
 
-boolean i2c_get_ready(i2c_handle *p_handle, boolean is_tx_complete) {
-	if (true_ != init[p_handle->id]) {
-		return init[p_handle->id];
+//error??
+boolean i2c_get_ready(i2c_handler *p_handler, boolean is_tx_complete) {
+	if (true_ != init[p_handler->id]) {
+		return init[p_handler->id];
 	}
 
-	if (NULL == p_handle) {
-		return error_;
+	if (NULL == p_handler) {
+		return false_;
 	}
+
+	p_handler->errors = error_count[p_handler->id];
 
 	if (true_ == is_tx_complete) {
-		return tx_complete[p_handle->id];
+		return tx_complete[p_handler->id];
 	}
 	else {
-		return rx_complete[p_handle->id];
+		return rx_complete[p_handler->id];
 	}
-
-	p_handle->errors = error_count[p_handle->id];
 }
 
 static status write_block_mode_(uint32_t id, uint8_t *p_data, size_t size, uint8_t address) {
