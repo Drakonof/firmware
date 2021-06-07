@@ -46,7 +46,7 @@ static uint8_t rx_buffer[DATA_BUFFER_SIZE],
 
 static i2c_handler i2c_handler_;
 
-status ds1307_init(uint32_t i2c_id) {
+XStatus ds1307_init(uint32_t i2c_id) {
     memset(rx_buffer, 0, DATA_BUFFER_SIZE);
     memset(tx_buffer, 0, DATA_BUFFER_SIZE);
 	memset(&i2c_handler_, 0, sizeof(i2c_handler));
@@ -54,11 +54,11 @@ status ds1307_init(uint32_t i2c_id) {
 //todo: platform relatedness
 #if (2U == XPAR_XIICPS_NUM_INSTANCES)
     if ((XPAR_XIICPS_0_DEVICE_ID != i2c_id) || (XPAR_XIICPS_1_DEVICE_ID != i2c_id)) {
-        return error_;
+        return XST_FAILURE;
     }
 #elif (1U == XPAR_XIICPS_NUM_INSTANCES)
     if (XPAR_XIICPS_0_DEVICE_ID != i2c_id) {
-        return error_;
+        return XST_FAILURE;
     }
 #endif
 
@@ -67,14 +67,14 @@ status ds1307_init(uint32_t i2c_id) {
     i2c_handler_.tx_buffer = tx_buffer;
     i2c_handler_.id = i2c_id;
 
-    return ok_;
+    return XST_SUCCESS;
 }
 
-status ds1307_write(ds1307_handler *p_handler, ds1307_param param) {
+XStatus ds1307_write(ds1307_handler *p_handler, ds1307_param param) {
     const uint8_t first_wr_field = 0;
 
     if (NULL == p_handler) {
-        return error_;
+        return XST_FAILURE;
     }
 
     if (all != param) {
@@ -127,18 +127,14 @@ status ds1307_write(ds1307_handler *p_handler, ds1307_param param) {
                              (p_handler->square_rate << SQUARE_RATE_OFFSET));
     break;
     default:
-        return error_;
+        return XST_FAILURE;
     break;
     }
 
-    if (ok_ != i2c_write(&i2c_handler_)) {
-        return error_;
-    }
-
-    return ok_;
+    return i2c_write(&i2c_handler_);
 }
 
-status ds1307_read(boolean do_unblocking_mode, ds1307_param param) {
+XStatus ds1307_read(_Bool do_unblocking_mode, ds1307_param param) {
     const uint8_t first_wr_field = 0;
 
     i2c_handler_.size = 1;
@@ -151,8 +147,8 @@ status ds1307_read(boolean do_unblocking_mode, ds1307_param param) {
         rx_buffer[tx_address_buf] = first_wr_field;
     }
 
-    if (ok_ != i2c_write(&i2c_handler_)) {
-        return error_;
+    if (XST_SUCCESS != i2c_write(&i2c_handler_)) {
+        return XST_FAILURE;
     }
 
     while(!i2c_get_ready(&i2c_handler_, tx_ready_flag)) {
@@ -163,16 +159,12 @@ status ds1307_read(boolean do_unblocking_mode, ds1307_param param) {
         i2c_handler_.size = DATA_BUFFER_SIZE - 1;
     }
 
-    if (ok_ != i2c_read(&i2c_handler_)) {
-        return error_;
-    }
-
-    return ok_;
+    return i2c_read(&i2c_handler_);
 }
 
-status ds1307_get_data(ds1307_handler *p_handler, ds1307_param param) {
+XStatus ds1307_get_data(ds1307_handler *p_handler, ds1307_param param) {
     if (NULL == p_handler) {
-        return error_;
+        return XST_FAILURE;
     }
 
     switch (param) {
@@ -183,7 +175,7 @@ status ds1307_get_data(ds1307_handler *p_handler, ds1307_param param) {
         p_handler->minutes = RD_CONVERT(rx_buffer[rx_data_buf]);
     break;
     case hours:
-        p_handler->is_am = (boolean)((rx_buffer[rx_data_buf] >> AM_PM_GET_BIT_OFFSET) & 0x1); //mask needed
+        p_handler->is_am = (_Bool)((rx_buffer[rx_data_buf] >> AM_PM_GET_BIT_OFFSET) & 0x1); //mask needed
         p_handler->hours = RD_CONVERT(rx_buffer[rx_data_buf]);
     break;
     case day:
@@ -199,29 +191,29 @@ status ds1307_get_data(ds1307_handler *p_handler, ds1307_param param) {
 		p_handler->year = RD_CONVERT(rx_buffer[rx_data_buf]);
 	break;
 	case control:
-        p_handler->do_square_wave = (boolean) (rx_buffer[rx_data_buf] << SQUARE_WAVE_OFFSET);
-        p_handler->square_rate = (square_wave_rate) (rx_buffer[rx_data_buf] << SQUARE_RATE_OFFSET);
+        p_handler->do_square_wave = (_Bool) (rx_buffer[rx_data_buf] >> SQUARE_WAVE_OFFSET);
+        p_handler->square_rate = (ds1307_square_wave_rate) (rx_buffer[rx_data_buf] << SQUARE_RATE_OFFSET);
     break;
     case all:
         p_handler->seconds = RD_CONVERT(rx_buffer[rx_seconds]);
         p_handler->minutes = RD_CONVERT(rx_buffer[rx_minutes]);
-        p_handler->is_am = (boolean) ((rx_buffer[rx_hours] >> AM_PM_GET_BIT_OFFSET) & 0x1);//mask needed
+        p_handler->is_am = (_Bool) ((rx_buffer[rx_hours] >> AM_PM_GET_BIT_OFFSET) & 0x1);//mask needed
         p_handler->hours = RD_CONVERT(rx_buffer[rx_hours]);
         p_handler->day = RD_CONVERT(rx_buffer[rx_day]);
         p_handler->date = RD_CONVERT(rx_buffer[rx_date]);
         p_handler->month = RD_CONVERT(rx_buffer[rx_month]);
         p_handler->year = RD_CONVERT(rx_buffer[rx_year]);
-        p_handler->do_square_wave = (boolean) (rx_buffer[rx_control] >> SQUARE_WAVE_OFFSET);
-        p_handler->square_rate = (square_wave_rate) (rx_buffer[rx_control] << SQUARE_RATE_OFFSET);
+        p_handler->do_square_wave = (_Bool) (rx_buffer[rx_control] >> SQUARE_WAVE_OFFSET);
+        p_handler->square_rate = (ds1307_square_wave_rate) (rx_buffer[rx_control] << SQUARE_RATE_OFFSET);
     break;
     default:
-        return error_;
+        return XST_FAILURE;
     break;
     }
 
-    return ok_;
+    return XST_SUCCESS;
 }
 
-boolean ds1307_get_ready(boolean is_tx_complete) {
-    return i2c_get_ready(&i2c_handler_, is_tx_complete);
+_Bool ds1307_get_ready(ds1307_ready_flags ready_flag) {
+    return i2c_get_ready(&i2c_handler_, (i2c_ready_flags) ready_flag);
 }
