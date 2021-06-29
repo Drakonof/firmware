@@ -1,10 +1,10 @@
-//i2c init requires
+//todo: 1.stop/start functions 2. reinit 3. release
 #ifndef INC_DS1307_H
 #define INC_DS1307_H
 
-#include "i2c_.h"
+#include "platform.h"
 
-#define DS1307_BUS_ADDRESS 0x68U
+#include "ps_i2c.h"
 
 typedef enum {
     wr_ready_flag,
@@ -31,9 +31,7 @@ typedef enum {
 } ds1307_param;
 
 typedef struct {
-    _Bool do_unblocking_mode;
     _Bool do_square_wave;
-    uint32_t i2c_id;
     ds1307_square_wave_rate square_rate;
 
     //for writing and reading regarding a data direction.
@@ -48,17 +46,16 @@ typedef struct {
     uint8_t year;
 
     _Bool is_out_high; //-
+
+    XStatus init;
+
+    ps_i2c_handler i2c_handler;
 } ds1307_handler;
 
-XStatus ds1307_init();
+XStatus ds1307_init(ds1307_handler *p_handler);
 XStatus ds1307_write(ds1307_handler *p_handler, ds1307_param param);
-XStatus ds1307_read(_Bool do_unblocking_mode, ds1307_param param);
+XStatus ds1307_read(ds1307_handler *p_handler, ds1307_param param);
 XStatus ds1307_get_data(ds1307_handler *p_handler, ds1307_param param);
-_Bool ds1307_get_ready(ds1307_ready_flags ready_flag);
-
-//todo: stop/start functions
-//todo: reinit
-//todo: release
-
+XStatus ds1307_get_ready(ds1307_handler *p_handler, ds1307_ready_flags ready_flag, _Bool *ready) ;
 
 #endif /* INC_DS1307_H */

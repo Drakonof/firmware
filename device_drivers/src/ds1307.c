@@ -1,7 +1,9 @@
 //todo: get wave out, RAM, right am/pm, порядок и оптимизация
 #include <string.h>
 
-#include "ds1307_.h"
+#include "ds1307.h"
+
+#define BUS_ADDRESS          0x68U
 
 #define DATA_BUFFER_SIZE     9U
 #define AM_PM_GET_BIT_OFFSET 5U
@@ -11,8 +13,8 @@
 #define HOURS_MASK           0x3FU
 #define HOURS_MASK_AM        0x1FU
 
-#define WR_CONVERT(x)		((x / 10 ) << 4) | (x % 10 )
-#define RD_CONVERT(x)		((x  >> 4 ) * 10)  + (x  & 0x0F)
+#define WR_CONVERT(x)        ((x / 10 ) << 4) | (x % 10 )
+#define RD_CONVERT(x)        ((x  >> 4 ) * 10)  + (x  & 0x0F)
 
 typedef enum {
     tx_address_buf,
@@ -44,12 +46,13 @@ typedef enum {
 static uint8_t rx_buffer[DATA_BUFFER_SIZE],
                tx_buffer[DATA_BUFFER_SIZE];
 
-static i2c_handler i2c_handler_;
+XStatus ds1307_init(ds1307_handler *p_handler) {
+	p_handler->init = XST_FAILURE;
 
-XStatus ds1307_init(uint32_t i2c_id) {
+	M_check_pointer(p_handler);
+
     memset(rx_buffer, 0, DATA_BUFFER_SIZE);
     memset(tx_buffer, 0, DATA_BUFFER_SIZE);
-	memset(&i2c_handler_, 0, sizeof(i2c_handler));
 
 //todo: platform relatedness
 #if (2U == XPAR_XIICPS_NUM_INSTANCES)
@@ -57,15 +60,16 @@ XStatus ds1307_init(uint32_t i2c_id) {
         return XST_FAILURE;
     }
 #elif (1U == XPAR_XIICPS_NUM_INSTANCES)
-    if (XPAR_XIICPS_0_DEVICE_ID != i2c_id) {
+    if (XPAR_XIICPS_0_DEVICE_ID !=  p_handler->i2c_handler.id) {
         return XST_FAILURE;
     }
 #endif
 
-    i2c_handler_.bus_address = DS1307_BUS_ADDRESS;
-    i2c_handler_.rx_buffer = rx_buffer;
-    i2c_handler_.tx_buffer = tx_buffer;
-    i2c_handler_.id = i2c_id;
+    p_handler->i2c_handler.bus_address = BUS_ADDRESS;
+    p_handler->i2c_handler.rx_buffer = rx_buffer;
+    p_handler->i2c_handler.tx_buffer = tx_buffer;
+
+    p_handler->init = XST_SUCCESS;
 
     return XST_SUCCESS;
 }
@@ -73,20 +77,18 @@ XStatus ds1307_init(uint32_t i2c_id) {
 XStatus ds1307_write(ds1307_handler *p_handler, ds1307_param param) {
     const uint8_t first_wr_field = 0;
 
-    if (NULL == p_handler) {
-        return XST_FAILURE;
-    }
+    M_check_pointer(p_handler);
+
+    M_check_status(p_handler->init);
 
     if (all != param) {
-        i2c_handler_.size = 1;
+    	p_handler->i2c_handler.size = 1;
         tx_buffer[tx_address_buf] = param;
     }
     else {
-        i2c_handler_.size = DATA_BUFFER_SIZE - 1;
+    	p_handler->i2c_handler.size = DATA_BUFFER_SIZE - 1;
         tx_buffer[tx_address_buf] = first_wr_field;
     }
-
-    i2c_handler_.do_unblocking_mode = p_handler->do_unblocking_mode;
 
     switch (param) {
     case seconds:
@@ -131,14 +133,18 @@ XStatus ds1307_write(ds1307_handler *p_handler, ds1307_param param) {
     break;
     }
 
-    return i2c_write(&i2c_handler_);
+    return ps_i2c_write(&p_handler->i2c_handler);
 }
 
-XStatus ds1307_read(_Bool do_unblocking_mode, ds1307_param param) {
+XStatus ds1307_read(ds1307_handler *p_handler, ds1307_param param) {
+	_Bool ready = false;
     const uint8_t first_wr_field = 0;
+    XStatus status = XST_FAILURE;
 
-    i2c_handler_.size = 1;
-    i2c_handler_.do_unblocking_mode = do_unblocking_mode;
+    M_check_pointer(p_handler);
+	M_check_status(p_handler->init);
+
+    p_handler->i2c_handler.size = 1;
 
     if (all != param) {
         rx_buffer[tx_address_buf] = param;
@@ -147,25 +153,24 @@ XStatus ds1307_read(_Bool do_unblocking_mode, ds1307_param param) {
         rx_buffer[tx_address_buf] = first_wr_field;
     }
 
-    if (XST_SUCCESS != i2c_write(&i2c_handler_)) {
-        return XST_FAILURE;
-    }
+    status = ps_i2c_write(&p_handler->i2c_handler);
+    M_check_status(status);
 
-    while(!i2c_get_ready(&i2c_handler_, tx_ready_flag)) {
-        asm("NOP");
+    //block
+    while(true != ready) {
+    	ps_i2c_get_ready(&p_handler->i2c_handler, tx_ready_flag, &ready);
     }
 
     if (all == param) {
-        i2c_handler_.size = DATA_BUFFER_SIZE - 1;
+    	p_handler->i2c_handler.size = DATA_BUFFER_SIZE - 1;
     }
 
-    return i2c_read(&i2c_handler_);
+    return ps_i2c_read(&p_handler->i2c_handler);
 }
 
 XStatus ds1307_get_data(ds1307_handler *p_handler, ds1307_param param) {
-    if (NULL == p_handler) {
-        return XST_FAILURE;
-    }
+	M_check_pointer(p_handler);
+	M_check_status(p_handler->init);
 
     switch (param) {
     case seconds:
@@ -214,6 +219,15 @@ XStatus ds1307_get_data(ds1307_handler *p_handler, ds1307_param param) {
     return XST_SUCCESS;
 }
 
-_Bool ds1307_get_ready(ds1307_ready_flags ready_flag) {
-    return i2c_get_ready(&i2c_handler_, (i2c_ready_flags) ready_flag);
+XStatus ds1307_get_ready(ds1307_handler *p_handler, ds1307_ready_flags ready_flag, _Bool *ready) {
+	XStatus status = XST_FAILURE;
+
+	M_check_pointer(p_handler);
+	M_check_status(p_handler->init);
+
+	status = ps_i2c_get_ready(&p_handler->i2c_handler, (ps_i2c_ready_flags) ready_flag, ready);
+
+	M_check_status(status);
+
+    return XST_SUCCESS;
 }
